@@ -169,6 +169,83 @@ export class SimulationRunner {
   }
 
   /**
+   * Submits a user-initiated BUY or SELL order directly into the market and blockchain ledger.
+   */
+  public submitUserOrder(params: {
+    participantId: string;
+    type: 'BUY' | 'SELL';
+    energyKwh: number;
+    pricePerKwh: number;
+    gridNodeId?: string;
+  }): { success: boolean; orderId: string; message: string; txHash?: string } {
+    const participant = this.state.participants.find((p) => p.id === params.participantId);
+    if (!participant) {
+      return { success: false, orderId: '', message: 'Participant not found.' };
+    }
+
+    let finalEnergy = Math.max(0.1, Number(params.energyKwh.toFixed(2)));
+    let warningMsg = '';
+
+    // If Oracle check is enabled and seller claims more energy than physical capacity, cap it
+    if (params.type === 'SELL' && this.state.fairnessPolicies.oracleVerificationEnabled) {
+      const maxSolarCapacity = participant.pvCapacityKw;
+      if (maxSolarCapacity > 0 && finalEnergy > maxSolarCapacity * 1.5) {
+        warningMsg = ` (⚠️ Oracle Capped: Claim exceeded physical meter limit of ${maxSolarCapacity.toFixed(1)} kW)`;
+        finalEnergy = Number(maxSolarCapacity.toFixed(2));
+      }
+    }
+
+    // Generate cryptographic salt and sealed-bid commitment hash
+    const salt = CryptoPrivacyService.generateSalt();
+    const { commitmentHash } = CryptoPrivacyService.createOrderCommitment(
+      participant.id,
+      params.type,
+      params.pricePerKwh,
+      finalEnergy,
+      salt
+    );
+
+    // Required collateral escrow calculation
+    const requiredCollateral = this.reputationEngine.calculateRequiredCollateral(
+      participant.reputation.score,
+      finalEnergy,
+      this.state.marketMetrics.marketBasePricePerKwh,
+      this.state.fairnessPolicies.dynamicStakingEnabled
+    );
+    participant.lockedEscrow = Number((participant.lockedEscrow + requiredCollateral).toFixed(2));
+
+    const orderId = `ORD_USER_${participant.id.slice(-4)}_${Date.now().toString().slice(-4)}`;
+    const newOrder: Order = {
+      id: orderId,
+      participantId: participant.id,
+      type: params.type,
+      energyKwh: finalEnergy,
+      pricePerKwh: Number(params.pricePerKwh.toFixed(4)),
+      commitmentHash,
+      salt,
+      isRevealed: true,
+      status: 'ACTIVE',
+      remainingEnergyKwh: finalEnergy,
+      gridNodeId: params.gridNodeId || participant.gridNodeId,
+      reputationAtSubmission: participant.reputation.score,
+      timestamp: Date.now(),
+    };
+
+    // Log smart contract commitment on blockchain ledger
+    const tx = this.ledger.submitOrderCommitment(participant.id, commitmentHash, requiredCollateral);
+
+    // Place at front of active orders so it matches immediately
+    this.state.activeOrders = [newOrder, ...this.state.activeOrders];
+
+    return {
+      success: true,
+      orderId,
+      message: `Order submitted: ${params.type} ${finalEnergy} kWh @ $${params.pricePerKwh.toFixed(3)}/kWh! Escrow: $${requiredCollateral.toFixed(2)}${warningMsg}`,
+      txHash: tx.txHash,
+    };
+  }
+
+  /**
    * Generates heterogeneous participants spanning the 3 socioeconomic wealth tiers
    */
   public generateRealisticParticipants(count: number): Participant[] {

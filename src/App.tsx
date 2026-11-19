@@ -72,6 +72,19 @@ export const App: React.FC = () => {
     setSimState({ ...runnerRef.current.getState() });
   };
 
+  const handleSubmitOrder = (params: {
+    participantId: string;
+    type: 'BUY' | 'SELL';
+    energyKwh: number;
+    pricePerKwh: number;
+    gridNodeId?: string;
+  }) => {
+    if (!runnerRef.current) return { success: false, orderId: '', message: 'Simulation not initialized' };
+    const res = runnerRef.current.submitUserOrder(params);
+    setSimState({ ...runnerRef.current.getState() });
+    return res;
+  };
+
   return (
     <div className="app-container">
       <Header
@@ -89,7 +102,12 @@ export const App: React.FC = () => {
       />
 
       <main style={{ marginTop: '0.25rem' }}>
-        {activeTab === 'MARKET' && <LiveMarketView state={simState} />}
+        {activeTab === 'MARKET' && (
+          <LiveMarketView
+            state={simState}
+            onSubmitOrder={handleSubmitOrder}
+          />
+        )}
         {activeTab === 'FEEDER' && <FeederMapView state={simState} />}
         {activeTab === 'ADVERSARY' && (
           <AdversarySandboxView
