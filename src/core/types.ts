@@ -187,6 +187,27 @@ export interface ReputationManipulationMetrics {
   falseDataPenaltiesApplied: number;
 }
 
+export interface SybilDefensePipeline {
+  didRegistrationEnabled: boolean;          // 1. Registration: Verifiable DID document check
+  meterHardwareAuthEnabled: boolean;       // 2. Authentication: Smart meter hardware key challenge-response
+  economicStakingRequired: boolean;        // 3. Staking: Financial collateral barrier ($150 per identity)
+  stakeAmountPerIdentity: number;          // Stake required ($)
+  proofOfPhysicalAssetEnabled: boolean;    // 4. Sybil Resistance: Physical NMI hardware capacity binding
+  bayesianAntiBallotEnabled: boolean;      // 5. Robust Reputation: Diminishing returns & cycle-pruning on votes
+}
+
+export interface SybilDefenseStatus {
+  layer1RegistrationResult: 'PASSED' | 'BLOCKED_MISSING_DID';
+  layer2AuthenticationResult: 'PASSED' | 'BLOCKED_INVALID_METER_SIG';
+  layer3StakingResult: 'PASSED' | 'BLOCKED_INSUFFICIENT_COLLATERAL';
+  layer4SybilResistanceResult: 'PASSED' | 'BLOCKED_DUPLICATE_METER_NMI';
+  layer5RobustReputationResult: 'PASSED' | 'BALLOT_STUFFING_DISCOUNTED';
+  puppetsBlockedCount: number;             // Number of puppets blocked (0 to 4)
+  economicCostToAttacker: number;          // Total stake required from attacker ($)
+  attackerSuccessProbability: number;      // % probability attacker successfully manipulates market
+  overallSybilDefended: boolean;
+}
+
 export interface SystemFairnessPolicies {
   lifelineQuotaEnabled: boolean;          // Guaranteed basic essential energy for Tier 3
   lifelineQuotaKwh: number;               // e.g., 2.0 kWh/hour protected
@@ -198,6 +219,7 @@ export interface SystemFairnessPolicies {
   antiWashCycleDetectionEnabled: boolean; // Prune circular trading rings
   oracleVerificationEnabled: boolean;         // Cross-check claimed energy against smart meter oracle data
   antiBallotStuffingEnabled: boolean;          // Rate-limit and verify rating/voting patterns
+  sybilDefensePipeline: SybilDefensePipeline; // 5-Pillar Sybil Attack Solution
 }
 
 export interface SimulationState {
@@ -215,6 +237,7 @@ export interface SimulationState {
   fairnessMetrics: FairnessAuditMetrics;
   attackMetrics: AttackEvaluationMetrics;
   reputationManipulationMetrics: ReputationManipulationMetrics;
+  sybilDefenseStatus: SybilDefenseStatus;
   fairnessPolicies: SystemFairnessPolicies;
   activeAttack: AttackType;
   solarIrradiancePu: number;              // Current solar intensity [0, 1]

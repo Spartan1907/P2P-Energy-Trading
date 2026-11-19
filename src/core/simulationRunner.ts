@@ -18,6 +18,7 @@ import { TransactiveMarketEngine } from './marketEngine';
 import { ReputationEngine } from './reputationEngine';
 import { AdversaryEngine } from './adversaryEngine';
 import { FalseDataEngine } from './falseDataEngine';
+import { SybilDefenseEngine } from './sybilDefenseEngine';
 import { FairnessEngine } from './fairnessEngine';
 import { CryptoPrivacyService } from './cryptoPrivacy';
 
@@ -29,6 +30,7 @@ export class SimulationRunner {
   private reputationEngine: ReputationEngine;
   private adversaryEngine: AdversaryEngine;
   private falseDataEngine: FalseDataEngine;
+  private sybilDefenseEngine: SybilDefenseEngine;
   private fairnessEngine: FairnessEngine;
 
   constructor(participantCount: number = 24) {
@@ -38,6 +40,7 @@ export class SimulationRunner {
     this.reputationEngine = new ReputationEngine();
     this.adversaryEngine = new AdversaryEngine();
     this.falseDataEngine = new FalseDataEngine();
+    this.sybilDefenseEngine = new SybilDefenseEngine();
     this.fairnessEngine = new FairnessEngine();
 
     const defaultPolicies: SystemFairnessPolicies = {
@@ -51,6 +54,14 @@ export class SimulationRunner {
       antiWashCycleDetectionEnabled: false,
       oracleVerificationEnabled: false,
       antiBallotStuffingEnabled: false,
+      sybilDefensePipeline: {
+        didRegistrationEnabled: false,
+        meterHardwareAuthEnabled: false,
+        economicStakingRequired: false,
+        stakeAmountPerIdentity: 150,
+        proofOfPhysicalAssetEnabled: false,
+        bayesianAntiBallotEnabled: false,
+      },
     };
 
     const initialParticipants = this.generateRealisticParticipants(participantCount);
@@ -117,6 +128,17 @@ export class SimulationRunner {
         defenseBlockedFakeRatings: 0,
         defenseBlockedBallotStuffs: 0,
         falseDataPenaltiesApplied: 0,
+      },
+      sybilDefenseStatus: {
+        layer1RegistrationResult: 'PASSED',
+        layer2AuthenticationResult: 'PASSED',
+        layer3StakingResult: 'PASSED',
+        layer4SybilResistanceResult: 'PASSED',
+        layer5RobustReputationResult: 'PASSED',
+        puppetsBlockedCount: 0,
+        economicCostToAttacker: 0,
+        attackerSuccessProbability: 88.0,
+        overallSybilDefended: false,
       },
       fairnessPolicies: defaultPolicies,
       activeAttack: 'NONE',
@@ -383,6 +405,20 @@ export class SimulationRunner {
         defenseBlockedBallotStuffs: 0,
         falseDataPenaltiesApplied: 0,
       };
+    }
+
+    // 3c. Evaluate 5-Pillar Sybil Defense Pipeline (Slide 08: registration, authentication, staking, sybil resistance, robust reputation)
+    const adversaries = this.state.participants.filter((p) => p.role === 'ADVERSARY');
+    const master = adversaries[0] || this.state.participants[0];
+    const { status: sybilStatus, injectedPuppetOrders } = this.sybilDefenseEngine.evaluateSybilDefense(
+      this.state.fairnessPolicies.sybilDefensePipeline,
+      master,
+      4
+    );
+    this.state.sybilDefenseStatus = sybilStatus;
+    if (this.state.activeAttack === 'SYBIL' && !sybilStatus.overallSybilDefended) {
+      allOrders.push(...injectedPuppetOrders);
+      this.state.activeOrders = allOrders;
     }
 
     // 4. Update Grid Feeder Power Flows & Thermal Limits
