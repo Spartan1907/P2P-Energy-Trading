@@ -5,7 +5,14 @@
  * And RQ3: Incorporating basic grid conditions into matching.
  */
 
-import { Order, TradeMatch, MarketMetrics, SystemFairnessPolicies, Participant } from './types';
+import {
+  Order,
+  TradeMatch,
+  MarketMetrics,
+  SystemFairnessPolicies,
+  Participant,
+  MeterValidationRecord,
+} from './types';
 import { DistributionGridModel } from './gridModel';
 import { CryptoPrivacyService } from './cryptoPrivacy';
 
@@ -19,6 +26,110 @@ export class TransactiveMarketEngine {
   private readonly betaElasticity: number = 0.75;
   // Reputation weighting coefficient in matching priority
   private readonly reputationWeight: number = 0.12;
+
+  /**
+   * Slide 07: Module 1 — Energy Data Validation
+   * S_i,t = max(0, G_i,t - C_i,t - R_i,t)
+   * A_i,t = min(O_i,t, S_i,t)
+   * Strict policy: reject offers above verified surplus beyond tolerance
+   */
+  public validateSellerSurplus(
+    participantId: string,
+    claimedOfferKwh: number,
+    simulatedGenKwh: number,
+    consumptionKwh: number,
+    reservedKwh: number = 0,
+    strictToleranceRatio: number = 0.05
+  ): MeterValidationRecord {
+    const verifiedSurplusKwh = Math.max(0, Number((simulatedGenKwh - consumptionKwh - reservedKwh).toFixed(3)));
+    const acceptedOfferKwh = Math.min(claimedOfferKwh, verifiedSurplusKwh);
+    const excessClaimKwh = Math.max(0, Number((claimedOfferKwh - verifiedSurplusKwh).toFixed(3)));
+
+    let decision: 'ACCEPTED' | 'CLAMPED' | 'REJECTED' = 'ACCEPTED';
+    let reason = 'Claimed offer matches verified physical surplus.';
+
+    if (excessClaimKwh > 0.01) {
+      if (claimedOfferKwh > verifiedSurplusKwh * (1 + strictToleranceRatio)) {
+        // Strict Policy: Reject offer completely (e.g., 10 claimed vs 4 verified)
+        decision = 'REJECTED';
+        reason = `REJECTED: Claimed ${claimedOfferKwh} kWh exceeds verified surplus (${verifiedSurplusKwh} kWh) by ${excessClaimKwh} kWh beyond tolerance.`;
+      } else {
+        // Tolerable boundary: clamp to verified surplus
+        decision = 'CLAMPED';
+        reason = `CLAMPED: Claimed ${claimedOfferKwh} kWh clamped to verified surplus of ${verifiedSurplusKwh} kWh.`;
+      }
+    }
+
+    return {
+      participantId,
+      claimedOfferKwh,
+      simulatedGenKwh,
+      consumptionKwh,
+      reservedKwh,
+      verifiedSurplusKwh,
+      acceptedOfferKwh: decision === 'REJECTED' ? 0 : acceptedOfferKwh,
+      excessClaimKwh,
+      decision,
+      reason,
+      timestamp: Date.now(),
+    };
+  }
+
+  /**
+   * Slide 09: Module 2 — Dynamic Pricing Formulas
+   * SDR = Total verified supply / (Total demand + epsilon)
+   * P_ref = P_FiT + (P_grid - P_FiT) * exp(-alpha * SDR)
+   * P_mid = (Seller ask + Buyer bid) / 2
+   * P_trade = clamp(lambda * P_ref + (1 - lambda) * P_mid, ask, bid)
+   */
+  public calculateIiitDynamicPrice(
+    sdr: number,
+    sellerAsk: number,
+    buyerBid: number,
+    alpha: number = 1.0,
+    lambda: number = 0.5
+  ): {
+    pRef: number;
+    pMid: number;
+    pTrade: number;
+  } {
+    const pRef = this.feedInTariff + (this.retailGridPrice - this.feedInTariff) * Math.exp(-alpha * Math.max(0, sdr));
+    const pMid = (sellerAsk + buyerBid) / 2;
+    const rawTrade = lambda * pRef + (1 - lambda) * pMid;
+
+    // Clamp strictly within [ask, bid] bounds
+    const lower = Math.min(sellerAsk, buyerBid);
+    const upper = Math.max(sellerAsk, buyerBid);
+    const pTrade = Math.max(lower, Math.min(upper, rawTrade));
+
+    return {
+      pRef: Number(pRef.toFixed(4)),
+      pMid: Number(pMid.toFixed(4)),
+      pTrade: Number(pTrade.toFixed(4)),
+    };
+  }
+
+  /**
+   * Slide 08 & 13: Computes Jain's Fairness Index
+   * J = (sum(x_j))^2 / (n * sum(x_j^2))
+   * where x_j is demand satisfaction ratio (allocated / demand)
+   */
+  public calculateJainsIndex(allocations: number[], demands: number[]): number {
+    const n = demands.length;
+    if (n === 0) return 1.0;
+
+    const satisfactionRatios = allocations.map((alloc, idx) => {
+      const d = demands[idx] || 0.001;
+      return Math.min(1.0, alloc / d);
+    });
+
+    const sum = satisfactionRatios.reduce((acc, val) => acc + val, 0);
+    const sumSquares = satisfactionRatios.reduce((acc, val) => acc + val * val, 0);
+
+    if (sumSquares <= 0.000001) return 1.0;
+    const jain = (sum * sum) / (n * sumSquares);
+    return Number(Math.min(1.0, Math.max(0.0, jain)).toFixed(4));
+  }
 
   /**
    * Computes the Supply-Demand Ratio (SDR) and Dynamic Reserve Mid-Market Price

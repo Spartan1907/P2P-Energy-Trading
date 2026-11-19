@@ -4,7 +4,13 @@
  * buyer-seller matching, transaction settlement, and tamper-resistant logging.
  */
 
-import { Block, BlockchainTransaction, Participant } from './types';
+import {
+  Block,
+  BlockchainTransaction,
+  Participant,
+  SmartContractTradeRecord,
+  SmartContractTradeState,
+} from './types';
 import { CryptoPrivacyService } from './cryptoPrivacy';
 
 export class MerkleTree {
@@ -33,10 +39,18 @@ export class SmartContractLedger {
   private chain: Block[] = [];
   private mempool: BlockchainTransaction[] = [];
   private registeredMeters: Set<string> = new Set();
+  private smartContractTrades: Map<string, SmartContractTradeRecord> = new Map();
+  private totalGasSpent: number = 0;
+
   private gasSchedule = {
     REGISTER: 45000,
     COMMIT_ORDER: 28000,
     REVEAL_ORDER: 32000,
+    CREATE_TRADE: 68000,
+    FUND_TRADE: 36000,
+    CONFIRM_DELIVERY: 42000,
+    SETTLE_TRADE: 54000,
+    CANCEL_TRADE: 31000,
     MATCH_SETTLEMENT: 65000,
     ESCROW_SLASH: 42000,
     REPUTATION_UPDATE: 22000,
@@ -215,6 +229,151 @@ export class SmartContractLedger {
 
     this.chain.push(newBlock);
     return newBlock;
+  }
+
+  /**
+   * Slide 11: Module 4 — Smart Contract State Machine Interface
+   * registerParticipant() • createTrade() • fundTrade() • confirmDelivery() • settleTrade() • cancelTrade()
+   */
+
+  public createTrade(
+    tradeId: string,
+    buyerId: string,
+    sellerId: string,
+    energyKwh: number,
+    pricePerKwh: number
+  ): { success: boolean; record?: SmartContractTradeRecord; error?: string } {
+    if (this.smartContractTrades.has(tradeId)) {
+      return { success: false, error: 'Trade ID already exists (duplicate trade rejected).' };
+    }
+
+    const escrowDeposit = Number((energyKwh * pricePerKwh).toFixed(2));
+    const record: SmartContractTradeRecord = {
+      tradeId,
+      buyerId,
+      sellerId,
+      energyKwh,
+      pricePerKwh,
+      escrowDeposit,
+      state: 'CREATED',
+      createdAt: Date.now(),
+      gasSpent: this.gasSchedule.CREATE_TRADE,
+      reentrancyLocked: false,
+    };
+
+    this.smartContractTrades.set(tradeId, record);
+    this.totalGasSpent += this.gasSchedule.CREATE_TRADE;
+
+    const tx: BlockchainTransaction = {
+      txHash: CryptoPrivacyService.hash(`CREATE_TRD:${tradeId}:${Date.now()}`),
+      type: 'MATCH_SETTLEMENT',
+      from: buyerId,
+      to: sellerId,
+      data: { tradeId, energyKwh, pricePerKwh, state: 'CREATED' },
+      gasUsed: this.gasSchedule.CREATE_TRADE,
+      timestamp: Date.now(),
+      signature: `SIG_CREATE_${tradeId}`,
+    };
+    this.mempool.push(tx);
+
+    return { success: true, record };
+  }
+
+  public fundTrade(tradeId: string): { success: boolean; record?: SmartContractTradeRecord; error?: string } {
+    const record = this.smartContractTrades.get(tradeId);
+    if (!record) return { success: false, error: 'Trade not found.' };
+    if (record.state !== 'CREATED') {
+      return { success: false, error: `Invalid state transition: Cannot fund trade in state ${record.state}.` };
+    }
+    if (record.reentrancyLocked) {
+      return { success: false, error: 'Reentrancy guard active.' };
+    }
+
+    record.reentrancyLocked = true;
+    record.state = 'FUNDED';
+    record.fundedAt = Date.now();
+    record.gasSpent += this.gasSchedule.FUND_TRADE;
+    this.totalGasSpent += this.gasSchedule.FUND_TRADE;
+    record.reentrancyLocked = false;
+
+    return { success: true, record };
+  }
+
+  public confirmDelivery(
+    tradeId: string,
+    deliveredKwh: number
+  ): { success: boolean; record?: SmartContractTradeRecord; error?: string } {
+    const record = this.smartContractTrades.get(tradeId);
+    if (!record) return { success: false, error: 'Trade not found.' };
+    if (record.state !== 'FUNDED') {
+      return { success: false, error: `Invalid state transition: Cannot confirm delivery in state ${record.state}.` };
+    }
+
+    record.state = 'DELIVERING';
+    record.deliveredEnergyKwh = deliveredKwh;
+    record.gasSpent += this.gasSchedule.CONFIRM_DELIVERY;
+    this.totalGasSpent += this.gasSchedule.CONFIRM_DELIVERY;
+
+    return { success: true, record };
+  }
+
+  public settleTrade(tradeId: string): { success: boolean; record?: SmartContractTradeRecord; error?: string } {
+    const record = this.smartContractTrades.get(tradeId);
+    if (!record) return { success: false, error: 'Trade not found.' };
+    if (record.state !== 'DELIVERING' && record.state !== 'FUNDED') {
+      return { success: false, error: `Invalid state transition: Cannot settle trade in state ${record.state}.` };
+    }
+    if (record.reentrancyLocked) {
+      return { success: false, error: 'Reentrancy guard active.' };
+    }
+
+    // Reentrancy-safe checks-effects-interactions pattern
+    record.reentrancyLocked = true;
+    record.state = 'SETTLED';
+    record.settledAt = Date.now();
+    record.gasSpent += this.gasSchedule.SETTLE_TRADE;
+    this.totalGasSpent += this.gasSchedule.SETTLE_TRADE;
+    record.reentrancyLocked = false;
+
+    const tx: BlockchainTransaction = {
+      txHash: CryptoPrivacyService.hash(`SETTLE_TRD:${tradeId}:${Date.now()}`),
+      type: 'MATCH_SETTLEMENT',
+      from: record.buyerId,
+      to: record.sellerId,
+      data: { tradeId, amount: record.escrowDeposit, state: 'SETTLED' },
+      gasUsed: this.gasSchedule.SETTLE_TRADE,
+      timestamp: Date.now(),
+      signature: `SIG_FINAL_SETTLE_${tradeId}`,
+    };
+    this.mempool.push(tx);
+
+    return { success: true, record };
+  }
+
+  public cancelTrade(
+    tradeId: string,
+    reason: string
+  ): { success: boolean; record?: SmartContractTradeRecord; error?: string } {
+    const record = this.smartContractTrades.get(tradeId);
+    if (!record) return { success: false, error: 'Trade not found.' };
+    if (record.state === 'SETTLED') {
+      return { success: false, error: 'Cannot cancel already settled trade.' };
+    }
+
+    record.state = 'CANCELLED';
+    record.cancelReason = reason;
+    record.gasSpent += this.gasSchedule.CANCEL_TRADE;
+    this.totalGasSpent += this.gasSchedule.CANCEL_TRADE;
+
+    return { success: true, record };
+  }
+
+  public getSmartContractTrades(): SmartContractTradeRecord[] {
+    return Array.from(this.smartContractTrades.values());
+  }
+
+  public getTotalGasConsumed(): number {
+    return this.totalGasSpent;
   }
 
   /**

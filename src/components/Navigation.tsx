@@ -20,6 +20,7 @@ export type TabType =
   | 'ADMIN_MARKET'
   | 'USER_PORTAL'
   | 'LOGIN'
+  | 'IIIT_FRAMEWORK'
   | 'FALSE_DATA'
   | 'SYBIL_SOLUTION'
   | 'REPUTATION_MANIP'
@@ -101,6 +102,21 @@ export const Navigation: React.FC<NavigationProps> = ({
         <span className="badge badge-yellow" style={{ fontSize: '0.62rem' }}>
           {currentSession.role === 'SIMULATOR' ? 'AUTH' : currentSession.role}
         </span>
+      </button>
+
+      {/* 5. IIIT Allahabad Presentation Framework */}
+      <button
+        className={`tab-btn ${activeTab === 'IIIT_FRAMEWORK' ? 'active' : ''}`}
+        onClick={() => onSelectTab('IIIT_FRAMEWORK')}
+        id="tab-iiit-framework"
+        style={{
+          borderLeft: '3px solid var(--purple-400)',
+          background: activeTab === 'IIIT_FRAMEWORK' ? 'rgba(139, 92, 246, 0.25)' : 'rgba(139, 92, 246, 0.1)',
+        }}
+      >
+        <Award size={18} color="var(--purple-400)" />
+        <span style={{ color: '#fff', fontWeight: 700 }}>IIIT-A Research PPT Framework</span>
+        <span className="badge badge-purple" style={{ fontSize: '0.62rem' }}>METHODOLOGY</span>
       </button>
 
       {/* 4. Problem 1: False Data */}

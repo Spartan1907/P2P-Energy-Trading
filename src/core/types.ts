@@ -220,6 +220,7 @@ export interface SystemFairnessPolicies {
   oracleVerificationEnabled: boolean;         // Cross-check claimed energy against smart meter oracle data
   antiBallotStuffingEnabled: boolean;          // Rate-limit and verify rating/voting patterns
   sybilDefensePipeline: SybilDefensePipeline; // 5-Pillar Sybil Attack Solution
+  matchingMode?: 'GREEDY_PRICE_PRIORITY' | 'TWO_STAGE_PROPORTIONAL_FAIR'; // Slide 08 allocation mode
 }
 
 export interface SimulationState {
@@ -242,4 +243,83 @@ export interface SimulationState {
   activeAttack: AttackType;
   solarIrradiancePu: number;              // Current solar intensity [0, 1]
   weatherCondition: 'SUNNY' | 'PARTLY_CLOUDY' | 'HEAVY_STORM';
+  matchingMode?: 'GREEDY_PRICE_PRIORITY' | 'TWO_STAGE_PROPORTIONAL_FAIR';
+  iiitMetrics?: IiitEvaluationMetrics;
+}
+
+/**
+ * Slide 07: Module 1 — Energy Data Validation Record
+ */
+export interface MeterValidationRecord {
+  participantId: string;
+  claimedOfferKwh: number;
+  simulatedGenKwh: number;
+  consumptionKwh: number;
+  reservedKwh: number;
+  verifiedSurplusKwh: number;
+  acceptedOfferKwh: number;
+  excessClaimKwh: number;
+  decision: 'ACCEPTED' | 'CLAMPED' | 'REJECTED';
+  reason: string;
+  timestamp: number;
+}
+
+/**
+ * Slide 11: Module 4 — Blockchain Smart Contract State Machine
+ */
+export type SmartContractTradeState =
+  | 'CREATED'
+  | 'FUNDED'
+  | 'DELIVERING'
+  | 'SETTLED'
+  | 'CANCELLED';
+
+export interface SmartContractTradeRecord {
+  tradeId: string;
+  buyerId: string;
+  sellerId: string;
+  energyKwh: number;
+  pricePerKwh: number;
+  escrowDeposit: number;
+  state: SmartContractTradeState;
+  deliveredEnergyKwh?: number;
+  createdAt: number;
+  fundedAt?: number;
+  settledAt?: number;
+  gasSpent: number;
+  reentrancyLocked: boolean;
+  cancelReason?: string;
+}
+
+/**
+ * Slide 12: Injected Scenarios & Threats
+ */
+export type IiitScenarioType =
+  | 'SCENARIO_A_NORMAL'
+  | 'SCENARIO_B_FALSE_REPORTING'
+  | 'SCENARIO_C_SUPPLY_SHORTAGE'
+  | 'SCENARIO_D_DELIVERY_FAILURE'
+  | 'SCENARIO_E_STRATEGIC_BIDDING';
+
+/**
+ * Slide 13: Evaluation Metrics for Planned Comparisons
+ */
+export interface IiitEvaluationMetrics {
+  jainsFairnessIndex: number;          // (Σx_j)^2 / (n Σx_j^2)
+  energyUtilizationRate: number;       // Traded energy / verified surplus
+  invalidOfferDetectionRate: number;   // Detected invalid / injected invalid
+  totalBuyerCost: number;              // Σ(price * allocated kWh)
+  reputationResponsiveness: number;    // Score change after violation (|ΔR|)
+  settlementSuccessRate: number;       // Settled / funded trades
+  totalGasConsumption: number;         // Measured contract gas
+  executionTimeMs: number;             // Runtime in ms
+  participantCount: number;            // 10, 25, or 50
+  scenario: IiitScenarioType;
+  matchingMode: 'GREEDY_PRICE_PRIORITY' | 'TWO_STAGE_PROPORTIONAL_FAIR';
+  reputationEnabled: boolean;
+  unmetDemandKwh: number;
+  totalEnergyTradedKwh: number;
+  averageClearedPrice: number;
+  buyerSurplus: number;
+  sellerSurplus: number;
 }

@@ -41,6 +41,41 @@ export class ReputationEngine {
   }
 
   /**
+   * Slide 10: Module 3 — Behavior-Based Reputation Mechanism (EWMA)
+   * R_i,t+1 = (1 - beta) * R_i,t + beta * r_i,t
+   * r_i,t in [0, 1] derived strictly from verified events:
+   * - delivery fraction (delivered / contracted)
+   * - reporting accuracy (verified surplus / claimed offer)
+   * - settlement success (1 for settled, 0 for default)
+   */
+  public calculatePerformanceScore(
+    deliveryFraction: number,
+    reportingAccuracy: number,
+    settlementSuccess: boolean,
+    weights: { wDelivery: number; wReport: number; wSettle: number } = { wDelivery: 0.5, wReport: 0.3, wSettle: 0.2 }
+  ): number {
+    const fDelivery = Math.max(0, Math.min(1.0, deliveryFraction));
+    const fReport = Math.max(0, Math.min(1.0, reportingAccuracy));
+    const fSettle = settlementSuccess ? 1.0 : 0.0;
+
+    const r_it =
+      weights.wDelivery * fDelivery +
+      weights.wReport * fReport +
+      weights.wSettle * fSettle;
+
+    return Number(Math.max(0, Math.min(1.0, r_it)).toFixed(4));
+  }
+
+  public updateEwmaReputation(
+    currentScore: number,
+    performanceScore: number,
+    betaEwma: number = 0.2
+  ): number {
+    const updated = (1 - betaEwma) * currentScore + betaEwma * performanceScore;
+    return Number(Math.max(0.01, Math.min(0.99, updated)).toFixed(3));
+  }
+
+  /**
    * Records a successfully delivered trade match.
    * Discounts reputation gains between pairs engaged in frequent reciprocal trades (Anti-Wash Trading).
    */

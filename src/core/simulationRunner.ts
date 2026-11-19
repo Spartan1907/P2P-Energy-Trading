@@ -62,6 +62,7 @@ export class SimulationRunner {
         proofOfPhysicalAssetEnabled: false,
         bayesianAntiBallotEnabled: false,
       },
+      matchingMode: 'TWO_STAGE_PROPORTIONAL_FAIR',
     };
 
     const initialParticipants = this.generateRealisticParticipants(participantCount);

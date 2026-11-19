@@ -6,6 +6,7 @@ import { LiveMarketView } from './components/LiveMarketView';
 import { AdminMarketView } from './components/AdminMarketView';
 import { UserPortalView } from './components/UserPortalView';
 import { LoginPageView } from './components/LoginPageView';
+import { IiitFrameworkView } from './components/IiitFrameworkView';
 import { AuthLoginModal } from './components/AuthLoginModal';
 import { AuthService, AuthSession } from './core/authService';
 import { FeederMapView } from './components/FeederMapView';
@@ -278,7 +279,10 @@ export const App: React.FC = () => {
           />
         )}
 
-        {/* 4. Problem 1: False Data (Oracle) */}
+        {/* 5. IIIT Allahabad Presentation Framework (Slides 01-14) */}
+        {activeTab === 'IIIT_FRAMEWORK' && <IiitFrameworkView />}
+
+        {/* 6. Problem 1: False Data (Oracle) */}
         {activeTab === 'FALSE_DATA' && (
           <FalseDataOracleView
             state={simState}

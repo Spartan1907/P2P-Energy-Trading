@@ -138,6 +138,44 @@ async function runBenchmarks() {
   console.log(`Cloudy Weather False Penalties     | ${String(unmitigated.weatherShockFalsePenaltyCount).padEnd(18)} | ${mitigated.weatherShockFalsePenaltyCount} (Forgiven via consensus)`);
   console.log('--------------------------------------------------------------------------------\n');
 
+  // 5. IIIT Allahabad Presentation Framework (Slide 12 & Slide 13 Benchmarks)
+  console.log('--- 5. IIIT Allahabad Framework: Slide 12 & 13 Planned Comparisons ---');
+  console.log('Authors: Krish (IIT2024120), Chahat Kumar (IIT2024201), Kush Singhania (IIT2024199)\n');
+  const { IiitExperimentRunner } = await import('../src/core/iiitExperimentRunner');
+  const expRunner = new IiitExperimentRunner();
+
+  // Run Comparisons across Scales (N = 10, 25, 50)
+  for (const n of [10, 25, 50] as const) {
+    const comp = expRunner.runPlannedComparisons(n);
+    console.log(`[Scale N=${n} Participants | Scarcity Stress Test]`);
+    console.log(`  • Baseline Greedy:       Jain's Index = ${comp.baseline.jainsFairnessIndex.toFixed(3)} | Traded = ${comp.baseline.totalEnergyTradedKwh} kWh | Unmet = ${comp.baseline.unmetDemandKwh} kWh | Gas = ${comp.baseline.totalGasConsumption.toLocaleString()}`);
+    console.log(`  • Proposed Proportional: Jain's Index = ${comp.proposed.jainsFairnessIndex.toFixed(3)} | Traded = ${comp.proposed.totalEnergyTradedKwh} kWh | Unmet = ${comp.proposed.unmetDemandKwh} kWh | Gas = ${comp.proposed.totalGasConsumption.toLocaleString()} ✅`);
+    console.log(`  • Without Reputation:    Jain's Index = ${comp.withoutRep.jainsFairnessIndex.toFixed(3)} | Traded = ${comp.withoutRep.totalEnergyTradedKwh} kWh | Unmet = ${comp.withoutRep.unmetDemandKwh} kWh | Gas = ${comp.withoutRep.totalGasConsumption.toLocaleString()}`);
+  }
+  console.log('');
+
+  // Run Slide 12 Scenarios (A to E)
+  console.log('Slide 12 Threat Scenarios Evaluation:');
+  const scenarios = [
+    { type: 'SCENARIO_A_NORMAL' as const, label: 'A: Normal Market (Truthful, Balanced)' },
+    { type: 'SCENARIO_B_FALSE_REPORTING' as const, label: 'B: False Reporting (10 claimed vs 4 verified)' },
+    { type: 'SCENARIO_C_SUPPLY_SHORTAGE' as const, label: 'C: Supply Shortage (Demand > Supply)' },
+    { type: 'SCENARIO_D_DELIVERY_FAILURE' as const, label: 'D: Delivery Failure (Seller Default + Slashing)' },
+    { type: 'SCENARIO_E_STRATEGIC_BIDDING' as const, label: 'E: Strategic Bidding (Price Gouging Capped by SDR)' },
+  ];
+
+  for (const sc of scenarios) {
+    const res = expRunner.runExperiment({
+      participantCount: 25,
+      scenario: sc.type,
+      matchingMode: 'TWO_STAGE_PROPORTIONAL_FAIR',
+      reputationEnabled: true,
+    });
+    console.log(`  Scenario ${sc.label}:`);
+    console.log(`    Jain's Index: ${res.metrics.jainsFairnessIndex.toFixed(3)} | Utilization: ${res.metrics.energyUtilizationRate}% | Detection: ${res.metrics.invalidOfferDetectionRate}% | Settlement: ${res.metrics.settlementSuccessRate}% | Latency: ${res.metrics.executionTimeMs} ms`);
+  }
+  console.log('');
+
   console.log('✅ ALL RESEARCH BENCHMARKS COMPLETED SUCCESSFULLY!');
 }
 
