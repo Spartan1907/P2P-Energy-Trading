@@ -6,6 +6,7 @@ import { LiveMarketView } from './components/LiveMarketView';
 import { FeederMapView } from './components/FeederMapView';
 import { AdversarySandboxView } from './components/AdversarySandboxView';
 import { FalseDataOracleView } from './components/FalseDataOracleView';
+import { SybilAttackSolutionView } from './components/SybilAttackSolutionView';
 import { ReputationManipulationView } from './components/ReputationManipulationView';
 import { FairnessAuditView } from './components/FairnessAuditView';
 import { BlockchainLedgerView } from './components/BlockchainLedgerView';
@@ -99,6 +100,12 @@ export const App: React.FC = () => {
         )}
         {activeTab === 'FALSE_DATA' && (
           <FalseDataOracleView
+            state={simState}
+            onUpdatePolicies={handleUpdatePolicies}
+          />
+        )}
+        {activeTab === 'SYBIL_SOLUTION' && (
+          <SybilAttackSolutionView
             state={simState}
             onUpdatePolicies={handleUpdatePolicies}
           />

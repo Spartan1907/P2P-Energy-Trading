@@ -8,6 +8,7 @@ import {
   Award,
   Database,
   Star,
+  Users,
 } from 'lucide-react';
 
 export type TabType =
@@ -15,6 +16,7 @@ export type TabType =
   | 'FEEDER'
   | 'ADVERSARY'
   | 'FALSE_DATA'
+  | 'SYBIL_SOLUTION'
   | 'REPUTATION_MANIP'
   | 'FAIRNESS'
   | 'BLOCKCHAIN'
@@ -71,8 +73,18 @@ export const Navigation: React.FC<NavigationProps> = ({
         id="tab-false-data"
       >
         <Database size={18} color="var(--red-400)" />
-        <span>Problem 1: False Data</span>
+        <span>Problem 1: False Data (Oracle)</span>
         <span className="badge badge-red" style={{ fontSize: '0.65rem' }}>ORACLE</span>
+      </button>
+
+      <button
+        className={`tab-btn ${activeTab === 'SYBIL_SOLUTION' ? 'active' : ''}`}
+        onClick={() => onSelectTab('SYBIL_SOLUTION')}
+        id="tab-sybil-solution"
+      >
+        <Users size={18} color="var(--cyan-400)" />
+        <span>Problem 3: Sybil Attack Solution</span>
+        <span className="badge badge-cyan" style={{ fontSize: '0.65rem' }}>5-PILLAR DEFENSE</span>
       </button>
 
       <button
@@ -81,8 +93,8 @@ export const Navigation: React.FC<NavigationProps> = ({
         id="tab-reputation-manip"
       >
         <Star size={18} color="var(--purple-400)" />
-        <span>Problem 3: Fake Rating &amp; Ballot Stuffing</span>
-        <span className="badge badge-purple" style={{ fontSize: '0.65rem' }}>SYBIL</span>
+        <span>Reputation: Fake Ratings &amp; Ballot Stuffing</span>
+        <span className="badge badge-purple" style={{ fontSize: '0.65rem' }}>TRUST</span>
       </button>
 
       <button
