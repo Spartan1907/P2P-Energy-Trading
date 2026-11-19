@@ -10,12 +10,15 @@ import {
   Lock,
 } from 'lucide-react';
 import { Participant } from '../core/types';
+import { AuthService } from '../core/authService';
 
 export interface AuthSession {
   role: 'ADMIN' | 'USER' | 'SIMULATOR';
   username: string;
   name: string;
   participantId?: string;
+  gridNodeId?: string;
+  email?: string;
 }
 
 interface AuthLoginModalProps {
@@ -32,8 +35,9 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
   participants,
 }) => {
   const [selectedRole, setSelectedRole] = useState<'ADMIN' | 'USER'>('ADMIN');
-  const [email, setEmail] = useState('operator@sg2.microgrid');
+  const [email, setEmail] = useState('admin@sg2.grid');
   const [password, setPassword] = useState('admin123');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selectedUserPartId, setSelectedUserPartId] = useState<string>(
     participants[2]?.id || participants[0]?.id || 'node_user_3'
   );
@@ -42,41 +46,45 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedRole === 'ADMIN') {
+    setErrorMsg(null);
+
+    const res = AuthService.authenticate(email, password, selectedRole);
+    if (!res.success || !res.session) {
+      setErrorMsg(res.error || 'Invalid credentials');
+      return;
+    }
+
+    onLogin(res.session);
+    onClose();
+  };
+
+  const handleQuickLoginAdmin = () => {
+    const res = AuthService.authenticate('admin@sg2.grid', 'admin123', 'ADMIN');
+    if (res.session) {
+      onLogin(res.session);
+    } else {
       onLogin({
         role: 'ADMIN',
         username: 'admin_operator',
         name: 'Smart Grid 2.0 Market Operator (Admin)',
-      });
-    } else {
-      const part = participants.find((p) => p.id === selectedUserPartId) || participants[0];
-      onLogin({
-        role: 'USER',
-        username: part.id,
-        name: part.name,
-        participantId: part.id,
+        email: 'admin@sg2.grid',
       });
     }
     onClose();
   };
 
-  const handleQuickLoginAdmin = () => {
-    onLogin({
-      role: 'ADMIN',
-      username: 'admin_operator',
-      name: 'Smart Grid 2.0 Market Operator (Admin)',
-    });
-    onClose();
-  };
-
   const handleQuickLoginUser = (partId: string) => {
     const part = participants.find((p) => p.id === partId) || participants[0];
-    onLogin({
+    const session: AuthSession = {
       role: 'USER',
       username: part.id,
       name: part.name,
       participantId: part.id,
-    });
+      gridNodeId: part.gridNodeId,
+      email: `${part.id}@sg2.grid`,
+    };
+    AuthService.storeSession(session);
+    onLogin(session);
     onClose();
   };
 
@@ -218,6 +226,20 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
 
         {/* Credentials Form */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          {errorMsg && (
+            <div
+              style={{
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid var(--red-500)',
+                padding: '0.55rem 0.75rem',
+                borderRadius: '6px',
+                color: 'var(--red-400)',
+                fontSize: '0.8rem',
+              }}
+            >
+              {errorMsg}
+            </div>
+          )}
           {selectedRole === 'USER' && (
             <div>
               <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '0.3rem' }}>

@@ -11,6 +11,7 @@ import {
   Users,
   Shield,
   User,
+  KeyRound,
 } from 'lucide-react';
 import { AuthSession } from './AuthLoginModal';
 
@@ -18,6 +19,7 @@ export type TabType =
   | 'MARKET'
   | 'ADMIN_MARKET'
   | 'USER_PORTAL'
+  | 'LOGIN'
   | 'FALSE_DATA'
   | 'SYBIL_SOLUTION'
   | 'REPUTATION_MANIP'
@@ -82,6 +84,23 @@ export const Navigation: React.FC<NavigationProps> = ({
         <User size={18} color="var(--cyan-400)" />
         <span style={{ color: 'var(--cyan-400)', fontWeight: 700 }}>User Page (P2P Hub)</span>
         <span className="badge badge-cyan" style={{ fontSize: '0.62rem' }}>PROSUMER</span>
+      </button>
+
+      {/* 4. Login & IAM Portal */}
+      <button
+        className={`tab-btn ${activeTab === 'LOGIN' ? 'active' : ''}`}
+        onClick={() => onSelectTab('LOGIN')}
+        id="tab-login"
+        style={{
+          borderLeft: '2px solid var(--yellow-400)',
+          background: activeTab === 'LOGIN' ? 'rgba(234, 179, 8, 0.2)' : 'rgba(234, 179, 8, 0.08)',
+        }}
+      >
+        <KeyRound size={18} color="var(--yellow-400)" />
+        <span style={{ color: 'var(--yellow-400)', fontWeight: 700 }}>Login &amp; IAM</span>
+        <span className="badge badge-yellow" style={{ fontSize: '0.62rem' }}>
+          {currentSession.role === 'SIMULATOR' ? 'AUTH' : currentSession.role}
+        </span>
       </button>
 
       {/* 4. Problem 1: False Data */}

@@ -246,6 +246,18 @@ export class SimulationRunner {
   }
 
   /**
+   * Registers a newly onboarded participant into the live microgrid
+   */
+  public registerParticipant(participant: Participant): void {
+    const existingIndex = this.state.participants.findIndex((p) => p.id === participant.id);
+    if (existingIndex >= 0) {
+      this.state.participants[existingIndex] = participant;
+    } else {
+      this.state.participants.push(participant);
+    }
+  }
+
+  /**
    * Generates heterogeneous participants spanning the 3 socioeconomic wealth tiers
    */
   public generateRealisticParticipants(count: number): Participant[] {
