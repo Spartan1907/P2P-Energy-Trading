@@ -12,11 +12,19 @@ import {
   Layers,
   Scale,
   DollarSign,
+  KeyRound,
+  LogOut,
+  Shield,
+  User,
 } from 'lucide-react';
 import { SimulationState } from '../core/types';
+import { AuthSession } from './AuthLoginModal';
 
 interface HeaderProps {
   state: SimulationState;
+  currentSession: AuthSession;
+  onOpenLogin: () => void;
+  onLogout: () => void;
   onTogglePlay: () => void;
   onStep: () => void;
   onReset: () => void;
@@ -25,6 +33,9 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   state,
+  currentSession,
+  onOpenLogin,
+  onLogout,
   onTogglePlay,
   onStep,
   onReset,
@@ -60,6 +71,36 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         <div className="control-buttons-group">
+          {/* Auth Status & Login Button */}
+          {currentSession.role === 'SIMULATOR' ? (
+            <button
+              className="btn btn-secondary"
+              style={{ border: '1px solid var(--cyan-400)', color: 'var(--cyan-400)' }}
+              onClick={onOpenLogin}
+              id="btn-header-login"
+            >
+              <KeyRound size={15} /> Login (Admin / User)
+            </button>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span
+                className={`badge ${currentSession.role === 'ADMIN' ? 'badge-purple' : 'badge-cyan'}`}
+                style={{ fontSize: '0.78rem', padding: '0.35rem 0.65rem' }}
+              >
+                {currentSession.role === 'ADMIN' ? <Shield size={13} /> : <User size={13} />}
+                {currentSession.name}
+              </span>
+              <button
+                className="btn btn-secondary"
+                style={{ padding: '0.4rem 0.6rem', fontSize: '0.75rem' }}
+                onClick={onLogout}
+                title="Logout back to Simulator"
+              >
+                <LogOut size={13} /> Logout
+              </button>
+            </div>
+          )}
+
           <button
             className={`btn ${state.isRunning ? 'btn-secondary' : 'btn-primary'}`}
             onClick={onTogglePlay}

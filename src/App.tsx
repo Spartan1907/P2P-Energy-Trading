@@ -3,6 +3,9 @@ import { SimulationRunner } from './core/simulationRunner';
 import { Header } from './components/Header';
 import { Navigation, TabType } from './components/Navigation';
 import { LiveMarketView } from './components/LiveMarketView';
+import { AdminMarketView } from './components/AdminMarketView';
+import { UserPortalView } from './components/UserPortalView';
+import { AuthLoginModal, AuthSession } from './components/AuthLoginModal';
 import { FeederMapView } from './components/FeederMapView';
 import { AdversarySandboxView } from './components/AdversarySandboxView';
 import { FalseDataOracleView } from './components/FalseDataOracleView';
@@ -21,6 +24,12 @@ export const App: React.FC = () => {
 
   const [simState, setSimState] = useState(runnerRef.current.getState());
   const [activeTab, setActiveTab] = useState<TabType>('MARKET');
+  const [isLoginOpen, setIsLoginOpen] = useState<boolean>(false);
+  const [authSession, setAuthSession] = useState<AuthSession>({
+    role: 'SIMULATOR',
+    username: 'guest',
+    name: 'Guest Observer',
+  });
 
   // Periodic simulation loop when isRunning is true
   useEffect(() => {
@@ -85,10 +94,31 @@ export const App: React.FC = () => {
     return res;
   };
 
+  const handleLogin = (session: AuthSession) => {
+    setAuthSession(session);
+    if (session.role === 'ADMIN') {
+      setActiveTab('ADMIN_MARKET');
+    } else if (session.role === 'USER') {
+      setActiveTab('USER_PORTAL');
+    }
+  };
+
+  const handleLogout = () => {
+    setAuthSession({
+      role: 'SIMULATOR',
+      username: 'guest',
+      name: 'Guest Observer',
+    });
+    setActiveTab('MARKET');
+  };
+
   return (
     <div className="app-container">
       <Header
         state={simState}
+        currentSession={authSession}
+        onOpenLogin={() => setIsLoginOpen(true)}
+        onLogout={handleLogout}
         onTogglePlay={handleTogglePlay}
         onStep={handleStep}
         onReset={handleReset}
@@ -99,16 +129,67 @@ export const App: React.FC = () => {
         activeTab={activeTab}
         onSelectTab={setActiveTab}
         activeAttack={simState.activeAttack}
+        currentSession={authSession}
+        onOpenLogin={() => setIsLoginOpen(true)}
       />
 
       <main style={{ marginTop: '0.25rem' }}>
+        {/* 1. Main Simulator */}
         {activeTab === 'MARKET' && (
           <LiveMarketView
             state={simState}
             onSubmitOrder={handleSubmitOrder}
           />
         )}
+
+        {/* 2. Admin Market Governance Page */}
+        {activeTab === 'ADMIN_MARKET' && (
+          <AdminMarketView
+            state={simState}
+            onUpdatePolicies={handleUpdatePolicies}
+            onStep={handleStep}
+            onTogglePlay={handleTogglePlay}
+          />
+        )}
+
+        {/* 3. User P2P Portal Page */}
+        {activeTab === 'USER_PORTAL' && (
+          <UserPortalView
+            state={simState}
+            activeUserId={authSession.participantId || 'node_user_3'}
+            onSelectUser={(id) => setAuthSession((prev) => ({ ...prev, participantId: id }))}
+            onSubmitOrder={handleSubmitOrder}
+          />
+        )}
+
+        {/* 4. Problem 1: False Data (Oracle) */}
+        {activeTab === 'FALSE_DATA' && (
+          <FalseDataOracleView
+            state={simState}
+            onUpdatePolicies={handleUpdatePolicies}
+          />
+        )}
+
+        {/* 5. Problem 3: Sybil Solution */}
+        {activeTab === 'SYBIL_SOLUTION' && (
+          <SybilAttackSolutionView
+            state={simState}
+            onUpdatePolicies={handleUpdatePolicies}
+          />
+        )}
+
+        {/* 6. Reputation & Ballot Stuffing */}
+        {activeTab === 'REPUTATION_MANIP' && (
+          <ReputationManipulationView
+            state={simState}
+            onUpdatePolicies={handleUpdatePolicies}
+          />
+        )}
+
+        {/* 7. Feeder Map */}
         {activeTab === 'FEEDER' && <FeederMapView state={simState} />}
+
+        {/* 8. Adversary Sandbox */}
         {activeTab === 'ADVERSARY' && (
           <AdversarySandboxView
             state={simState}
@@ -116,33 +197,29 @@ export const App: React.FC = () => {
             onUpdatePolicies={handleUpdatePolicies}
           />
         )}
-        {activeTab === 'FALSE_DATA' && (
-          <FalseDataOracleView
-            state={simState}
-            onUpdatePolicies={handleUpdatePolicies}
-          />
-        )}
-        {activeTab === 'SYBIL_SOLUTION' && (
-          <SybilAttackSolutionView
-            state={simState}
-            onUpdatePolicies={handleUpdatePolicies}
-          />
-        )}
-        {activeTab === 'REPUTATION_MANIP' && (
-          <ReputationManipulationView
-            state={simState}
-            onUpdatePolicies={handleUpdatePolicies}
-          />
-        )}
+
+        {/* 9. Fairness & Justice Audit */}
         {activeTab === 'FAIRNESS' && (
           <FairnessAuditView
             state={simState}
             onUpdatePolicies={handleUpdatePolicies}
           />
         )}
+
+        {/* 10. Blockchain Ledger */}
         {activeTab === 'BLOCKCHAIN' && <BlockchainLedgerView state={simState} />}
+
+        {/* 11. Benchmarks */}
         {activeTab === 'BENCHMARKS' && <ResearchBenchmarkView state={simState} />}
       </main>
+
+      {/* Login Modal */}
+      <AuthLoginModal
+        isOpen={isLoginOpen}
+        onClose={() => setIsLoginOpen(false)}
+        onLogin={handleLogin}
+        participants={simState.participants}
+      />
     </div>
   );
 };
